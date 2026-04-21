@@ -1,113 +1,37 @@
-using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 
 namespace StateMachine
 {
+    /**
+     * <summary>
+     * Defines a phase sequence that executes a series of async steps.
+     * Used during state transitions to manage exit/enter activity execution.
+     * </summary>
+     */
     public interface ISequence
     {
+        /**
+         * <summary>Gets whether the sequence has completed all steps.</summary>
+         */
         bool IsDone { get; }
+        
+        /**
+         * <summary>Starts executing the sequence. Should be called once before Update() calls.</summary>
+         */
         void Start();
+        
+        /**
+         * <summary>
+         * Updates the sequence execution. Should be called every frame.
+         * Returns true when the sequence is complete.
+         * </summary>
+         */
         bool Update();
     }
     
+    /**
+     * <summary>Delegate for an individual phase step that performs async work.</summary>
+     */
     public delegate UniTask PhaseStep(CancellationToken cancellationToken);
-
-    public class SequentialPhase : ISequence
-    {
-        private readonly List<PhaseStep> _phaseSteps;
-        private readonly CancellationToken _cancellationToken;
-        private int _index = -1;
-        private UniTask _currentTask;
-        
-        public bool IsDone { get; private set; }
-        
-        public SequentialPhase(List<PhaseStep> phaseSteps, CancellationToken cancellationToken)
-        {
-            _phaseSteps = phaseSteps;
-            _cancellationToken = cancellationToken;
-        }
-
-        public void Start() => Next();
-
-        private void Next()
-        {
-            _index++;
-            if (_index >= _phaseSteps.Count)
-            {
-                IsDone = true;
-                return;
-            }
-            
-            _currentTask = _phaseSteps[_index](_cancellationToken);
-        }
-
-        public bool Update()
-        {
-            if (IsDone) return true;
-            
-            if (_currentTask.Status.IsCompleted())
-            {
-                Next();
-            }
-
-            return IsDone;
-        }
-    }
-
-    public class ParallelPhase : ISequence
-    {
-        private readonly List<PhaseStep> _phaseSteps;
-        private readonly CancellationToken _cancellationToken;
-        List<UniTask> _tasks;
-        
-        public bool IsDone { get; private set; }
-        
-        public ParallelPhase(List<PhaseStep> phaseSteps, CancellationToken cancellationToken)
-        {
-            _phaseSteps = phaseSteps;
-            _cancellationToken = cancellationToken;
-        }
-        
-        public void Start()
-        {
-            if (_phaseSteps == null || _phaseSteps.Count == 0)
-            {
-                IsDone = true;
-                return;
-            }
-            
-            _tasks = new List<UniTask>();
-            foreach (var phaseStep in _phaseSteps)
-            {
-                _tasks.Add(phaseStep(_cancellationToken));
-            }
-        }
-
-        public bool Update()
-        {
-            if (IsDone) return true;
-
-            bool trueForAllTasks = true;
-            foreach (var task in _tasks)
-            {
-                if (!task.Status.IsCompleted())
-                {
-                    trueForAllTasks = false;
-                    break;
-                }
-            }
-            
-            return _tasks == null || trueForAllTasks;
-        }
-    }
-    
-    public class NoOpPhase : ISequence
-    {
-        public bool IsDone { get; private set; }
-
-        public void Start() => IsDone = true;
-
-        public bool Update() => true;
-    }
 }

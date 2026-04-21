@@ -1,28 +1,63 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using UnityEngine;
 
 namespace StateMachine
 {
-    public class TransitionSequencer<T> where T : class
+    /**
+     * <summary>
+     * Manages state transitions including exit/enter activity execution.
+     * Sequences exit activities -> state change -> enter activities.
+     * Supports both sequential (one at a time) and parallel (all at once) activity execution.
+     * Also handles queuing of transitions requested during other transitions.
+     * </summary>
+     */
+    public class TransitionSequencer<T> where T : MonoBehaviour
     {
+        /**
+         * <summary>The state machine this sequencer manages transitions for.</summary>
+         */
         public readonly StateMachine<T> Machine;
         
+        /**
+         * <summary>The current phase being executed (exit activities, enter activities, or null if idle).</summary>
+         */
         private ISequence _sequencer;
+        
+        /**
+         * <summary>The callback to execute when the current phase completes (transitions to next phase).</summary>
+         */
         private Action _nextPhase;
+        
+        /**
+         * <summary>A transition requested while another transition is in progress. Will execute after current one completes.</summary>
+         */
         private (State<T> from, State<T> to)? _pending;
-        private State<T> _lastFrom;
-        private State<T> _lastTo;
-
+        
+        /**
+         * <summary>Cancellation token source for cancelling async activities if needed.</summary>
+         */
         private CancellationTokenSource _source;
+        
+        /**
+         * <summary>Whether to execute activities sequentially (one at a time) or in parallel (all at once).</summary>
+         */
         public readonly bool UseSequential;
 
-        public TransitionSequencer(StateMachine<T> stateMachine, bool useSequential = true)
+        public TransitionSequencer(StateMachine<T> stateMachine, bool useSequential = false)
         {
             Machine = stateMachine;
             UseSequential = useSequential;
+            _source = new CancellationTokenSource();
         }
 
+        /**
+         * <summary>
+         * Requests a transition from one state to another.
+         * If a transition is already in progress, this request is queued as a pending transition.
+         * </summary>
+         */
         public void RequestTransition(State<T> from, State<T> to)
         {
             if (to == null || from == to) return;
@@ -30,16 +65,27 @@ namespace StateMachine
             if (_sequencer != null)
             {
                 _pending = (from, to);
-                BeginTransition(from, to);
+                return;
             }
+            
+            BeginTransition(from, to);
         }
 
-        public void BeginTransition(State<T> from, State<T> to)
+        /**
+         * <summary>
+         * Begins executing a transition between two states.
+         * Phase 1: Execute exit activities for states being exited (sequential or parallel)
+         * Phase 2: Change state hierarchy
+         * Phase 3: Execute enter activities for states being entered (sequential or parallel)
+         * </summary>
+         */
+        private void BeginTransition(State<T> from, State<T> to)
         {
             var lca = LowestCommonAncestor(from, to);
             var statesToExit = StatesToExit(from, lca);
             var statesToEnter = StatesToEnter(to, lca);
             
+            // Phase 1: Create exit activity steps
             var exitSteps = GatherPhaseSteps(statesToExit, true);
             
             _sequencer = UseSequential ? new SequentialPhase(exitSteps, _source.Token) : 
@@ -48,7 +94,10 @@ namespace StateMachine
 
             _nextPhase = () =>
             {
+                // Phase 2: Actually change the state hierarchy
                 Machine.ChangeState(from, to);
+                
+                // Phase 3: Create and start enter activity steps
                 var enterSteps = GatherPhaseSteps(statesToEnter, false);
                 _sequencer = UseSequential ? new SequentialPhase(enterSteps, _source.Token) : 
                                              new ParallelPhase(enterSteps, _source.Token);
@@ -56,18 +105,30 @@ namespace StateMachine
             };
         }
 
-        public void EndTransition()
+        /**
+         * <summary>
+         * Completes the current transition and checks if there's a pending transition to execute.
+         * </summary>
+         */
+        private void EndTransition()
         {
             _sequencer = null;
             
+            // If a transition was requested while we were transitioning, execute it now
             if (_pending.HasValue)
             {
-                (State<T> from, State<T> to) = _pending.Value;
+                (State<T> from, State<T> to) p = _pending.Value;
                 _pending = null;
-                BeginTransition(from, to);
+                BeginTransition(p.from, p.to);
             }
         }
 
+        /**
+         * <summary>
+         * Called every frame by the state machine to advance transition execution.
+         * Returns early if a transition is in progress, preventing normal state updates.
+         * </summary>
+         */
         public void Tick(float deltaTime)
         {
             if (_sequencer != null)
@@ -88,9 +149,18 @@ namespace StateMachine
                 return;
             }
             
+            // No transition in progress - proceed with normal state machine update
             Machine.InternalTick(deltaTime);
         }
+        
+        #region Static Helpers
 
+        /**
+         * <summary>
+         * Gathers all async activity steps from a list of states that need to be activated or deactivated.
+         * Activities are only included if they're in the appropriate state (Inactive for activate, Active for deactivate).
+         * </summary>
+         */
         private static List<PhaseStep> GatherPhaseSteps(List<State<T>> chain, bool deactivate)
         {
             var steps = new List<PhaseStep>();
@@ -103,6 +173,7 @@ namespace StateMachine
                 {
                     if (deactivate)
                     {
+                        // Only deactivate activities that are currently active
                         if (a.Mode == ActivityMode.Active)
                         {
                             steps.Add(ct => a.DeactivateAsync(ct));
@@ -110,6 +181,7 @@ namespace StateMachine
                     }
                     else
                     {
+                        // Only activate activities that are currently inactive
                         if (a.Mode == ActivityMode.Inactive)
                         {
                             steps.Add(ct => a.ActivateAsync(ct));
@@ -121,9 +193,17 @@ namespace StateMachine
             return steps;
         }
 
+        /**
+         * <summary>
+         * Returns all states that need to exit when transitioning from 'from' to 'to'.
+         * These are all ancestors of 'from' up to (but not including) the Lowest Common Ancestor.
+         * </summary>
+         */
         private static List<State<T>> StatesToExit(State<T> from, State<T> lca)
         {
             var states = new List<State<T>>();
+            
+            // Walk up from 'from' until we hit the LCA, collecting all states to exit
             for (var current = from; current != null && current != lca; current = current.Parent)
             {
                 states.Add(current);
@@ -132,10 +212,18 @@ namespace StateMachine
             return states;
         }
 
+        /**
+         * <summary>
+         * Returns all states that need to enter when transitioning from 'from' to 'to'.
+         * These are all ancestors of 'to' up to (but not including) the Lowest Common Ancestor.
+         * Returns them in the correct order (root to leaf) for proper state initialization.
+         * </summary>
+         */
         private static List<State<T>> StatesToEnter(State<T> to, State<T> lca)
         {
             var states = new Stack<State<T>>();
             
+            // Walk up from 'to' until we hit the LCA, pushing states onto stack (reverses order)
             for (var current = to; current != null && current != lca; current = current.Parent)
             {
                 states.Push(current);
@@ -144,14 +232,23 @@ namespace StateMachine
             return new List<State<T>>(states);
         }
 
+        /**
+         * <summary>
+         * Finds the Lowest Common Ancestor (LCA) of two states in the hierarchy.
+         * The LCA is the deepest state that is an ancestor of both states.
+         * Used to determine which states to exit and enter during a transition.
+         * </summary>
+         */
         public static State<T> LowestCommonAncestor(State<T> a, State<T> b)
         {
+            // Build a set of all ancestors of 'a'
             var aParent = new HashSet<State<T>>();
             for (var current = a; current != null; current = current.Parent)
             {
                 aParent.Add(current);
             }
             
+            // Walk up from 'b' until we find a state that's also an ancestor of 'a'
             for (var current = b; current != null; current = current.Parent)
             {
                 if (aParent.Contains(current))
@@ -162,5 +259,7 @@ namespace StateMachine
             
             return null;
         }
+        
+        #endregion
     }
 }
