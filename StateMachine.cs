@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Extensions.Other;
 using UnityEngine;
 
-namespace Extensions.StateMachine
+namespace StateMachine
 {
     public class StateMachine<T> : MonoBehaviourUpdatable where T : class
     {

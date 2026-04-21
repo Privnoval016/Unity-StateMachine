@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 
-namespace Extensions.StateMachine
+namespace StateMachine
 {
     public class TransitionSequencer<T> where T : class
     {

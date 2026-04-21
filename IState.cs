@@ -1,4 +1,4 @@
-namespace Extensions.StateMachine
+namespace StateMachine
 {
     public interface IState
     {

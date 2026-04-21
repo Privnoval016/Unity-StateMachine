@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace Extensions.StateMachine
+namespace StateMachine
 {
     public abstract class State<T> : IState where T : class
     {

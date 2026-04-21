@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 
-namespace Extensions.StateMachine
+namespace StateMachine
 {
     
     public class StateMachineBuilder<T> where T : class
