@@ -16,17 +16,17 @@ namespace StateMachine
         /**
          * <summary>The state machine managing this state.</summary>
          */
-        public readonly StateMachine<T> Machine;
-        
+        public StateMachine<T> Machine { get; private set; }
+
         /**
          * <summary>The MonoBehaviour instance that hosts the state machine.</summary>
          */
-        public readonly T Host;
+        public T Host => Machine.Host;
         
         /**
          * <summary>This state's parent in the hierarchy. Null for the root state.</summary>
          */
-        public readonly State<T> Parent;
+        public State<T> Parent { get; private set; }
         
         /**
          * <summary>The currently active child state. Used to determine which branch is active in the tree.</summary>
@@ -39,24 +39,50 @@ namespace StateMachine
         private readonly List<IActivity> _activities = new();
         public IReadOnlyList<IActivity> Activities => _activities;
 
-        protected State(StateMachine<T> stateMachine, State<T> parent)
+        private Transition<T> _transition;
+
+        
+        public State<T> WithMachine(StateMachine<T> machine)
         {
-            Machine = stateMachine;
-            Host = Machine.Host;
-            Parent = parent;
+            Machine = machine;
+            return this;
         }
+        
+        public State<T> WithParent(State<T> parent)
+        {
+            Parent = parent;
+            return this;
+        }
+        
 
         /**
          * <summary>
          * Attaches an async activity to this state.
          * Activities will be activated when entering this state and deactivated when exiting.
          * </summary>
+         *
+         * <returns>This state instance for method chaining.</returns>
          */
-        public void AddActivity(IActivity activity)
+        public State<T> WithActivity(IActivity activity)
         {
-            if (activity == null) return;
+            if (activity == null) return this;
             
             _activities.Add(activity);
+
+            return this;
+        }
+        
+        /**
+         * <summary>
+         * Sets the transition function for this state.
+         * </summary>
+         *
+         * <returns>This state instance for method chaining.</returns>
+         */
+        public State<T> WithTransition(Transition<T> transition)
+        {
+            _transition = transition;
+            return this;
         }
 
         /**
@@ -66,14 +92,14 @@ namespace StateMachine
          * </summary>
          */
         protected virtual State<T> GetInitialState() => null;
-        
+
         /**
          * <summary>
          * Called every frame to check if this state should transition to another state.
          * Return a state to request a transition to that state, or null to stay in current state.
          * </summary>
          */
-        protected virtual State<T> GetTransition() => null;
+        private State<T> GetTransition() => _transition?.Evaluate(Host, this);
 
         #region Lifecycle Hooks
         
