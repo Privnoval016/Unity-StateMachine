@@ -63,7 +63,7 @@ namespace StateMachine
          * Registers a state to be hooked up to the state machine.
          * </summary>
          * <param name="state">The state to register. Must not be null.</param>
-         * <param name="parentState">The parent state of this state. Optional if parenting is not needed here.</param>
+         * <param name="parentState">The parent state of this state. If provided, overwrites the given state's parent with this.</param>
          * <returns>This builder instance for method chaining.</returns>
          * <exception cref="System.ArgumentNullException">Thrown if state is null.</exception>
          */

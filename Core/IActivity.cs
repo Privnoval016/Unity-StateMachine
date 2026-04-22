@@ -72,6 +72,16 @@ namespace StateMachine
     {
         public ActivityMode Mode { get; protected set; } = ActivityMode.Inactive;
 
+        /**
+         * <summary>
+         * Base method for activation, when entering a state.
+         * By default, it simply changes the mode to Activating, waits for one frame, then sets it to Active.
+         * Override this method to implement custom activation logic.
+         * </summary>
+         *
+         * <param name="cancellationToken">Token to cancel the activation.</param>
+         * <returns>This method returns a UniTask that completes when activation is finished.</returns>
+         */
         public virtual async UniTask ActivateAsync(CancellationToken cancellationToken)
         {
             if (Mode != ActivityMode.Inactive) return;
@@ -81,6 +91,17 @@ namespace StateMachine
             Mode = ActivityMode.Active;
         }
 
+        
+        /**
+         * <summary>
+         * Base method for deactivation when exiting a state.
+         * By default, it simply changes the mode to Deactivating, waits for one frame, then sets it to Inactive.
+         * Override this method to implement custom deactivation logic.
+         * </summary>
+         *
+         * <param name="cancellationToken">Token to cancel the deactivation.</param>
+         * <returns>This method returns a UniTask that completes when deactivation is finished.</returns
+         */
         public virtual async UniTask DeactivateAsync(CancellationToken cancellationToken)
         {
             if (Mode != ActivityMode.Active) return;
