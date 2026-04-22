@@ -11,7 +11,7 @@ namespace StateMachine
      * </summary>
      * <typeparam name="T">The MonoBehaviour type that hosts this state machine.</typeparam>
      */
-    public abstract class State<T> : IState where T : MonoBehaviour
+    public abstract class State<T> where T : MonoBehaviour
     {
         /**
          * <summary>The state machine managing this state.</summary>
@@ -40,17 +40,66 @@ namespace StateMachine
         public IReadOnlyList<IActivity> Activities => _activities;
 
         private Transition<T> _transition;
+        private State<T> _initialState;
 
+        #region Builders
         
+        /**
+         * <summary>
+         * Sets the state machine that manages this state. Must be called before using the state.
+         * </summary>
+         *
+         * <param name="machine">The state machine that will manage this state.</param>
+         * <returns>This state instance for method chaining.</returns>
+         */
         public State<T> WithMachine(StateMachine<T> machine)
         {
             Machine = machine;
+            machine.RegisterState(this);
             return this;
         }
         
+        /**
+         * <summary>
+         * Sets the parent state of this state. Establishes the hierarchy and allows for nested states
+         * to be activated when the parent is active. Parent states can have multiple child states, but only one active at a time.
+         * </summary>
+         *
+         * <param name="parent">The parent state of this state. Null if this is the root state.</param>
+         * <returns>This state instance for method chaining.</returns>
+         */
         public State<T> WithParent(State<T> parent)
         {
             Parent = parent;
+            return this;
+        }
+        
+        /**
+         * <summary>
+         * Sets the initial child state that should automatically activate when this state is entered.
+         * </summary>
+         *
+         * <param name="initialState">The child state to activate when this state is entered.</param>
+         * <returns>This state instance for method chaining.</returns>
+         */
+        public State<T> WithInitialState(State<T> initialState)
+        {
+            _initialState = initialState;
+            initialState.WithParent(this);
+            return this;
+        }
+
+        /**
+         * <summary>
+         * Convenience method to set this state as the initial child of a parent state.
+         * </summary>
+         *
+         * <param name="parent">The parent state to set this state as the initial child of.</param>
+         * <returns>This state instance for method chaining.</returns>
+         */
+        public State<T> AsInitialState(State<T> parent)
+        {
+            parent.WithInitialState(this);
             return this;
         }
         
@@ -61,6 +110,7 @@ namespace StateMachine
          * Activities will be activated when entering this state and deactivated when exiting.
          * </summary>
          *
+         * <param name="activity">The activity to attach to this state.</param>
          * <returns>This state instance for method chaining.</returns>
          */
         public State<T> WithActivity(IActivity activity)
@@ -77,6 +127,7 @@ namespace StateMachine
          * Sets the transition function for this state.
          * </summary>
          *
+         * <param name="transition">The transition function that determines if this state should transition to another state.</param>
          * <returns>This state instance for method chaining.</returns>
          */
         public State<T> WithTransition(Transition<T> transition)
@@ -84,14 +135,15 @@ namespace StateMachine
             _transition = transition;
             return this;
         }
+        
+        #endregion
 
         /**
          * <summary>
          * Called by the state machine to determine which child state should automatically become active when this state enters.
-         * Override to implement default child state selection. Return null to have no initial child.
          * </summary>
          */
-        protected virtual State<T> GetInitialState() => null;
+        private State<T> GetInitialState() => _initialState;
 
         /**
          * <summary>
@@ -106,7 +158,7 @@ namespace StateMachine
         /**
          * <summary>Called when this state becomes active. Use to initialize state-specific behavior.</summary>
          */
-        public virtual void OnEnter()
+        protected virtual void OnEnter()
         {
         
         }
@@ -114,7 +166,7 @@ namespace StateMachine
         /**
          * <summary>Called when this state becomes inactive. Use to clean up state-specific behavior.</summary>
          */
-        public virtual void OnExit()
+        protected virtual void OnExit()
         {
         
         }
@@ -125,7 +177,7 @@ namespace StateMachine
          * Only the leaf (deepest active) state in the tree receives these calls.
          * </summary>
          */
-        public virtual void OnUpdate(float deltaTime)
+        protected virtual void OnUpdate(float deltaTime)
         {
         
         }
@@ -201,8 +253,8 @@ namespace StateMachine
 
             if (transitionTarget != null)
             {
-                // Request the transition through the sequencer (handles activity execution)
-                Machine.Sequencer.RequestTransition(this, transitionTarget);
+                // Request the transition through the machine's sequencer (handles activity execution)
+                Machine.TransitionTo(this, transitionTarget);
                 return;
             }
             

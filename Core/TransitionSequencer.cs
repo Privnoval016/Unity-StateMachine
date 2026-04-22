@@ -60,7 +60,9 @@ namespace StateMachine
          */
         public void RequestTransition(State<T> from, State<T> to)
         {
-            if (to == null || from == to) return;
+            if (from == null || to == null) return;
+            
+            //if (from == to) return; // self transitions allowed
             
             if (_sequencer != null)
             {
@@ -201,15 +203,17 @@ namespace StateMachine
          */
         private static List<State<T>> StatesToExit(State<T> from, State<T> lca)
         {
-            var states = new List<State<T>>();
+            var states = new Queue<State<T>>();
             
-            // Walk up from 'from' until we hit the LCA, collecting all states to exit
-            for (var current = from; current != null && current != lca; current = current.Parent)
+            states.Enqueue(from); // always add current state for self transitions
+            
+            // Exit states in order from leaf to root
+            for (var current = from.Parent; current != null && current != lca; current = current.Parent)
             {
-                states.Add(current);
+                states.Enqueue(current);
             }
 
-            return states;
+            return new List<State<T>>(states);
         }
 
         /**
@@ -223,8 +227,10 @@ namespace StateMachine
         {
             var states = new Stack<State<T>>();
             
-            // Walk up from 'to' until we hit the LCA, pushing states onto stack (reverses order)
-            for (var current = to; current != null && current != lca; current = current.Parent)
+            states.Push(to); // always add target state for self transitions
+            
+            // Enter states in order from root to leaf
+            for (var current = to.Parent; current != null && current != lca; current = current.Parent)
             {
                 states.Push(current);
             }
@@ -241,14 +247,12 @@ namespace StateMachine
          */
         public static State<T> LowestCommonAncestor(State<T> a, State<T> b)
         {
-            // Build a set of all ancestors of 'a'
             var aParent = new HashSet<State<T>>();
             for (var current = a; current != null; current = current.Parent)
             {
                 aParent.Add(current);
             }
             
-            // Walk up from 'b' until we find a state that's also an ancestor of 'a'
             for (var current = b; current != null; current = current.Parent)
             {
                 if (aParent.Contains(current))

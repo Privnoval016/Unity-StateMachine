@@ -18,15 +18,15 @@ namespace StateMachine
      * Single-line usage:
      * <code>
      * var sm = new StateMachineBuilder&lt;PlayerController&gt;(root)
-     *     .WithState(idle, root)
+     *     .WithState(idle)
      *     .Build(playerController);
      * </code>
      *
      * Multi-line usage:
      * <code>
      * var builder = new StateMachineBuilder&lt;PlayerController&gt;(root)
-     *     .WithState(idle, root)
-     *     .WithState(run, root)
+     *     .WithState(idle)
+     *     .WithState(run)
      *     .WithState(jump, run);
      *
      * var stateMachine = builder.Build(playerController);
@@ -63,13 +63,17 @@ namespace StateMachine
          * Registers a state to be hooked up to the state machine.
          * </summary>
          * <param name="state">The state to register. Must not be null.</param>
+         * <param name="parentState">The parent state of this state. Optional if parenting is not needed here.</param>
          * <returns>This builder instance for method chaining.</returns>
          * <exception cref="System.ArgumentNullException">Thrown if state is null.</exception>
          */
-        public StateMachineBuilder<T> WithState(State<T> state)
+        public StateMachineBuilder<T> WithState(State<T> state, State<T> parentState = null)
         {
             if (state == null)
                 throw new System.ArgumentNullException(nameof(state), "State cannot be null.");
+            
+            if (parentState != null)
+                state.WithParent(parentState);
             
             _states.Add(state);
             

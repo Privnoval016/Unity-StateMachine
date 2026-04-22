@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Extensions.Other;
 using UnityEngine;
@@ -27,12 +28,14 @@ namespace StateMachine
         /**
          * <summary>Manages state transitions and activity sequencing.</summary>
          */
-        public readonly TransitionSequencer<T> Sequencer;
+        private readonly TransitionSequencer<T> _sequencer;
         
         /**
          * <summary>Whether the state machine has been started.</summary>
          */
         private bool _started;
+
+        private readonly Dictionary<Type, State<T>> _stateRegistry;
         
         /**
          * <summary>
@@ -43,8 +46,49 @@ namespace StateMachine
         {
             Host = host;
             Root = root;
-            Sequencer = new TransitionSequencer<T>(this);
+            _sequencer = new TransitionSequencer<T>(this);
+            
+            _stateRegistry = new Dictionary<Type, State<T>>();
         }
+        
+        #region State Tracking
+        
+        public bool RegisterState(State<T> state, bool overwrite = false)
+        {
+            var type = state.GetType();
+            if (_stateRegistry.ContainsKey(type))
+            {
+                if (!overwrite)
+                {
+                    Debug.LogError($"State of type {type} is already registered. Set overwrite to true to replace it.");
+                    return false;
+                }
+                
+                Debug.LogWarning($"State of type {type} is already registered. Overwriting with new instance.");
+            }
+            
+            _stateRegistry[type] = state;
+            return true;
+        }
+        
+        public State<T> GetState(Type type)
+        {
+            if (_stateRegistry.TryGetValue(type, out var state))
+            {
+                return state;
+            }
+            
+            Debug.LogError($"State of type {type} is not registered in the state machine.");
+            return null;
+        }
+
+        public State<T> GetState<TState>() where TState : State<T>
+        {
+            Type type = typeof(TState);
+            return GetState(type);
+        }
+        
+        #endregion
 
         /**
          * <summary>
@@ -62,6 +106,24 @@ namespace StateMachine
 
         /**
          * <summary>
+         * Transitions the state machine to the given state. Used as an "Any State" transition for external triggers.
+         * </summary>
+         *
+         * <param name="nextState">The state to transition to. Must be part of the state hierarchy.</param>
+         */
+        public void TransitionTo(State<T> nextState)
+        {
+            var leaf = Root.Leaf();
+            TransitionTo(leaf, nextState);
+        }
+
+        public void TransitionTo(State<T> from, State<T> to)
+        {
+            _sequencer.RequestTransition(from, to);
+        }
+
+        /**
+         * <summary>
          * Called every frame by MonoBehaviourUpdater.
          * Advances transition sequences and delegates state updates to the active state tree.
          * </summary>
@@ -71,7 +133,7 @@ namespace StateMachine
             base.Update();
             
             if (!_started) Start();
-            Sequencer.Tick(Time.deltaTime);
+            _sequencer.Tick(Time.deltaTime);
         }
         
         /**
