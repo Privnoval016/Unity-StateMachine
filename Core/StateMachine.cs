@@ -87,6 +87,17 @@ namespace StateMachine
             Type type = typeof(TState);
             return GetState(type);
         }
+
+        public bool IsState(Type type)
+        {
+            return _stateRegistry.ContainsKey(type);
+        }
+
+        public bool IsState<TState>() where TState : State<T>
+        {
+            Type type = typeof(TState);
+            return IsState(type);
+        }
         
         #endregion
 

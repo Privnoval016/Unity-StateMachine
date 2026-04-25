@@ -13,7 +13,7 @@ namespace StateMachine
         private readonly Func<T, State<T>, State<T>> _evaluator;
 
         public FuncTransition(Func<T, State<T>, State<T>> evaluator)
-        {
+        {   
             _evaluator = evaluator;
         }
         
