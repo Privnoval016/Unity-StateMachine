@@ -145,6 +145,8 @@ namespace StateMachine
             
             if (!_started) Start();
             _sequencer.Tick(Time.deltaTime);
+            
+            Debug.Log($"Current active state: {Root.Leaf().GetType().Name}");
         }
         
         /**
