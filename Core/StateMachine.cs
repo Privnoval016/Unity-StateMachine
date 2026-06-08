@@ -41,13 +41,20 @@ namespace StateMachine
          * <summary>
          * Creates a new state machine with the given host and root state.
          * </summary>
+         * <param name="host">The MonoBehaviour that owns the state machine.</param>
+         * <param name="root">The root state of the hierarchy.</param>
+         * <param name="exitSkipPolicy">
+         * Optional delegate evaluated before each transition. When it returns true, exit activity
+         * tokens are pre-cancelled so exit clips are suppressed for that from→to pair.
+         * </param>
          */
-        public StateMachine(T host, State<T> root) : base(host.gameObject)
+        public StateMachine(T host, State<T> root,
+            Func<State<T>, State<T>, bool> exitSkipPolicy = null) : base(host.gameObject)
         {
             Host = host;
             Root = root;
-            _sequencer = new TransitionSequencer<T>(this);
-            
+            _sequencer = new TransitionSequencer<T>(this, exitSkipPolicy: exitSkipPolicy);
+
             _stateRegistry = new Dictionary<Type, State<T>>();
         }
         
@@ -110,9 +117,13 @@ namespace StateMachine
         public void Start()
         {
             if (_started) return;
-            
+
             _started = true;
             Root.Enter();
+
+            // Root.Enter() sets the initial leaf but bypasses TransitionSequencer, so activities
+            // on the initial path are never activated via GatherPhaseSteps. Bootstrap them now.
+            _sequencer.BootstrapActivities();
         }
 
         /**
@@ -145,8 +156,6 @@ namespace StateMachine
             
             if (!_started) Start();
             _sequencer.Tick(Time.deltaTime);
-            
-            Debug.Log($"Current active state: {Root.Leaf().GetType().Name}");
         }
         
         /**

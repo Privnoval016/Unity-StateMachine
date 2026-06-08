@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -38,8 +39,8 @@ namespace StateMachine
     public class StateMachineBuilder<T> where T : MonoBehaviour
     {
         private readonly State<T> _root;
-        
         private readonly List<State<T>> _states = new();
+        private Func<State<T>, State<T>, bool> _exitSkipPolicy;
         
         /**
          * <summary>
@@ -82,6 +83,20 @@ namespace StateMachine
 
         /**
          * <summary>
+         * Registers a delegate evaluated before each transition to decide whether exit activity
+         * tokens should be pre-cancelled, suppressing exit clips for that from→to pair.
+         * </summary>
+         * <param name="policy">Returns true to suppress exits for the given source and destination states.</param>
+         * <returns>This builder instance for method chaining.</returns>
+         */
+        public StateMachineBuilder<T> WithExitSkipPolicy(Func<State<T>, State<T>, bool> policy)
+        {
+            _exitSkipPolicy = policy;
+            return this;
+        }
+
+        /**
+         * <summary>
          * Builds and returns the fully constructed state machine.
          * This is the final step that creates the StateMachine instance with all configured activities.
          * The root state and host are verified, then the state machine is instantiated.
@@ -102,7 +117,7 @@ namespace StateMachine
                     $"Host must be of type {typeof(T).Name}, but was {host.GetType().Name}.");
 
             // Create the state machine with the root and host
-            var machine = new StateMachine<T>(tHost, _root);
+            var machine = new StateMachine<T>(tHost, _root, _exitSkipPolicy);
 
             foreach (var state in _states)
             {
