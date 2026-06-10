@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 
@@ -51,10 +52,10 @@ namespace StateMachine.Activities
 
             Mode = ActivityMode.Activating;
 
-            // Invoke the callback if provided
             if (_onActivate != null)
             {
-                await _onActivate(cancellationToken);
+                try { await _onActivate(cancellationToken); }
+                catch (OperationCanceledException) { }
             }
 
             Mode = ActivityMode.Active;
@@ -72,10 +73,10 @@ namespace StateMachine.Activities
 
             Mode = ActivityMode.Deactivating;
 
-            // Invoke the callback if provided
             if (_onDeactivate != null)
             {
-                await _onDeactivate(cancellationToken);
+                try { await _onDeactivate(cancellationToken); }
+                catch (OperationCanceledException) { }
             }
 
             Mode = ActivityMode.Inactive;

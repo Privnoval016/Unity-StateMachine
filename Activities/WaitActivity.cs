@@ -53,10 +53,10 @@ namespace StateMachine.Activities
 
             Mode = ActivityMode.Activating;
 
-            // Wait for the activation delay
             if (_activateDelaySeconds > 0f)
             {
-                await UniTask.Delay(TimeSpan.FromSeconds(_activateDelaySeconds), cancellationToken: cancellationToken);
+                try { await UniTask.Delay(TimeSpan.FromSeconds(_activateDelaySeconds), cancellationToken: cancellationToken); }
+                catch (OperationCanceledException) { }
             }
 
             Mode = ActivityMode.Active;
@@ -74,10 +74,10 @@ namespace StateMachine.Activities
 
             Mode = ActivityMode.Deactivating;
 
-            // Wait for the deactivation delay
             if (_deactivateDelaySeconds > 0f)
             {
-                await UniTask.Delay(TimeSpan.FromSeconds(_deactivateDelaySeconds), cancellationToken: cancellationToken);
+                try { await UniTask.Delay(TimeSpan.FromSeconds(_deactivateDelaySeconds), cancellationToken: cancellationToken); }
+                catch (OperationCanceledException) { }
             }
 
             Mode = ActivityMode.Inactive;
